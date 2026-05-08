@@ -40,12 +40,12 @@ def enhance_audio(input_audio, output_audio):
         prop_decrease=0.9
     )
 
-    board = Pedalboard([
-        NoiseGate(threshold_db=-30, ratio=1.5),
-        Compressor(threshold_db=-20, ratio=4),
-        Gain(gain_db=5),
-        Reverb(room_size=0.05)
-    ])
+   board = Pedalboard([
+    NoiseGate(threshold_db=-30, ratio=1.5),
+    Compressor(threshold_db=-20, ratio=4),
+    Gain(gain_db=5),
+    Reverb(room_size=0.05)
+])
 
     effected = board(reduced_noise, rate)
 
