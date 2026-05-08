@@ -15,13 +15,16 @@ from pedalboard import (
     LowpassFilter
 )
 
+# ---------------------------
+# SETUP
+# ---------------------------
 os.makedirs("temp", exist_ok=True)
 os.makedirs("outputs", exist_ok=True)
 
-st.set_page_config(page_title="AI Auto Studio Voice", layout="wide")
+st.set_page_config(page_title="AI Voice Enhancer Pro+", layout="wide")
 
-st.title("🎙️ AI Auto Studio Voice Enhancer")
-st.write("Upload audio/video → AI automatically analyzes and applies professional mastering")
+st.title("🎙️ AI Voice Enhancer Pro+ (Better than VoiceEnhancer.ai)")
+st.write("Upload audio/video → AI analyzes and upgrades your voice automatically")
 
 uploaded_file = st.file_uploader(
     "Upload File",
@@ -29,7 +32,7 @@ uploaded_file = st.file_uploader(
 )
 
 # ---------------------------
-# Extract audio from video
+# EXTRACT AUDIO
 # ---------------------------
 def extract_audio(video_path, audio_path):
     subprocess.run([
@@ -41,16 +44,16 @@ def extract_audio(video_path, audio_path):
     ], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
 # ---------------------------
-# AUTO STUDIO ENGINE
+# SMART AI ENGINE
 # ---------------------------
-def auto_master_audio(input_audio, output_audio):
+def ai_master_engine(input_audio, output_audio):
 
     data, sr = sf.read(input_audio)
 
     if len(data.shape) > 1:
         data = np.mean(data, axis=1)
 
-    # Normalize input
+    # Normalize
     data = data / (np.max(np.abs(data)) + 1e-6)
 
     # ---------------------------
@@ -59,41 +62,51 @@ def auto_master_audio(input_audio, output_audio):
     rms = np.sqrt(np.mean(data**2))
     peak = np.max(np.abs(data))
 
-    st.info(f"📊 Audio RMS Level: {rms:.4f}")
+    st.info(f"📊 RMS Level: {rms:.4f}")
     st.info(f"📊 Peak Level: {peak:.4f}")
 
+    # ---------------------------
+    # AI DECISION ENGINE
+    # ---------------------------
     effects = []
 
-    # ---------------------------
-    # SMART DECISION ENGINE
-    # ---------------------------
-
     if rms < 0.02:
-        st.warning("🔍 Detected: Low-quality / noisy audio")
-        effects.append(NoiseGate(threshold_db=-45, ratio=3))
-        effects.append(Compressor(threshold_db=-25, ratio=5))
-        effects.append(Gain(3.0))
+        st.warning("🔍 Detected: Low quality / noisy audio")
+        effects += [
+            NoiseGate(-45, ratio=3),
+            Compressor(-25, ratio=5),
+            Gain(3.5)
+        ]
 
-    elif 0.02 <= rms < 0.1:
-        st.success("🔍 Detected: Normal voice audio")
-        effects.append(NoiseGate(threshold_db=-40, ratio=2))
-        effects.append(Compressor(threshold_db=-18, ratio=3))
-        effects.append(Gain(2.0))
+    elif rms < 0.1:
+        st.success("🔍 Detected: Normal speech audio")
+        effects += [
+            NoiseGate(-40, ratio=2),
+            Compressor(-18, ratio=3),
+            Gain(2.0)
+        ]
 
     else:
         st.warning("🔍 Detected: Loud / compressed audio")
-        effects.append(Limiter(threshold_db=-2))
-        effects.append(Compressor(threshold_db=-20, ratio=4))
+        effects += [
+            Limiter(-2),
+            Compressor(-20, ratio=4)
+        ]
 
     # ---------------------------
-    # ALWAYS APPLY STUDIO MASTERING
+    # PROFESSIONAL MASTERING LAYER
     # ---------------------------
-
     effects += [
         HighpassFilter(80),
         LowpassFilter(12000),
-        Reverb(room_size=0.015, wet_level=0.02, dry_level=0.98),
-        Limiter(threshold_db=-1)
+
+        Reverb(
+            room_size=0.015,
+            wet_level=0.02,
+            dry_level=0.98
+        ),
+
+        Limiter(-1)
     ]
 
     board = Pedalboard(effects)
@@ -106,7 +119,7 @@ def auto_master_audio(input_audio, output_audio):
 
     sf.write(output_audio, processed, sr)
 
-    st.success("🎧 Auto Studio Mastering Completed")
+    st.success("🎧 AI Mastering Complete")
 
 # ---------------------------
 # MAIN APP
@@ -127,18 +140,20 @@ if uploaded_file:
 
     # Extract audio if needed
     if is_video:
-        with st.spinner("Extracting audio..."):
+        with st.spinner("Extracting audio from video..."):
             extract_audio(file_path, input_audio)
     else:
         input_audio = file_path
 
-    # Run AI auto mastering
+    # AI Processing
     with st.spinner("AI analyzing and enhancing audio..."):
-        auto_master_audio(input_audio, output_audio)
+        ai_master_engine(input_audio, output_audio)
 
     st.divider()
 
-    # Preview
+    # ---------------------------
+    # BEFORE / AFTER
+    # ---------------------------
     col1, col2 = st.columns(2)
 
     with col1:
@@ -151,7 +166,9 @@ if uploaded_file:
 
     st.divider()
 
-    # Video merge
+    # ---------------------------
+    # DOWNLOAD / VIDEO MERGE
+    # ---------------------------
     if is_video:
 
         final_video = "outputs/final_video.mp4"
@@ -170,7 +187,7 @@ if uploaded_file:
             st.download_button(
                 "⬇ Download Enhanced Video",
                 f,
-                file_name="auto_studio_video.mp4"
+                file_name="pro_voice_video.mp4"
             )
 
     else:
@@ -179,5 +196,5 @@ if uploaded_file:
             st.download_button(
                 "⬇ Download Enhanced Audio",
                 f,
-                file_name="auto_studio_audio.wav"
+                file_name="pro_voice_audio.wav"
             )
