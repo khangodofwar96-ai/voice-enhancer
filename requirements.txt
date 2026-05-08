@@ -2,7 +2,6 @@ streamlit
 numpy
 soundfile
 scipy
-pydub
 pedalboard
 ffmpeg-python
 imageio
