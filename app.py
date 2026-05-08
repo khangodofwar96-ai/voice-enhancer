@@ -1,25 +1,33 @@
 import os
 import subprocess
 import streamlit as st
-from moviepy.editor import VideoFileClip
-from pedalboard import Pedalboard, Compressor, NoiseGate, Reverb, Gain
-from pedalboard.io import AudioFile
+import moviepy.editor as mp
 import soundfile as sf
-import noisereduce as nr
 import numpy as np
+
+from pedalboard import (
+    Pedalboard,
+    Compressor,
+    NoiseGate,
+    Reverb,
+    Gain,
+    Limiter,
+    HighpassFilter,
+    LowpassFilter
+)
 
 # Create folders
 os.makedirs("temp", exist_ok=True)
 os.makedirs("outputs", exist_ok=True)
 
-# Streamlit page
+# Streamlit config
 st.set_page_config(
-    page_title="AI Voice Enhancer",
+    page_title="AI Professional Voice Enhancer",
     layout="wide"
 )
 
-st.title("🎙️ AI Voice Studio Enhancer")
-st.write("Upload rough audio/video and convert it into studio-quality voice.")
+st.title("🎙️ AI Professional Voice Enhancer")
+st.write("Upload rough audio/video and get studio-level enhanced sound.")
 
 # Upload file
 uploaded_file = st.file_uploader(
@@ -27,43 +35,94 @@ uploaded_file = st.file_uploader(
     type=["mp4", "mov", "avi", "wav", "mp3"]
 )
 
-# Extract audio from video
+# Extract audio
 def extract_audio(video_path, output_audio):
-    video = VideoFileClip(video_path)
-    video.audio.write_audiofile(output_audio)
 
-# Enhance audio
-def enhance_audio(input_audio, output_audio):
+    video = mp.VideoFileClip(video_path)
 
-    # Read audio
-    data, rate = sf.read(input_audio)
-
-    # Convert stereo to mono
-    if len(data.shape) > 1:
-        data = np.mean(data, axis=1)
-
-    # Noise reduction
-    reduced_noise = nr.reduce_noise(
-        y=data,
-        sr=rate,
-        prop_decrease=0.9
+    video.audio.write_audiofile(
+        output_audio,
+        codec="pcm_s16le"
     )
 
-    # Studio effects
+# AI enhancement using DeepFilterNet
+def ai_clean_audio(input_audio):
+
+    command = [
+        "deepFilter",
+        input_audio,
+        "--output-dir",
+        "outputs"
+    ]
+
+    subprocess.run(command)
+
+    enhanced_path = os.path.join(
+        "outputs",
+        os.path.basename(input_audio)
+    )
+
+    return enhanced_path
+
+# Studio mastering
+def studio_master(input_audio, output_audio):
+
+    audio, sample_rate = sf.read(input_audio)
+
+    # Convert stereo to mono if needed
+    if len(audio.shape) > 1:
+        audio = np.mean(audio, axis=1)
+
+    # Professional audio chain
     board = Pedalboard([
-        NoiseGate(threshold_db=-30, ratio=1.5),
-        Compressor(threshold_db=-20, ratio=4),
-        Gain(gain_db=5),
-        Reverb(room_size=0.05)
+
+        # Clean rumble
+        HighpassFilter(cutoff_frequency_hz=80),
+
+        # Remove harsh highs
+        LowpassFilter(cutoff_frequency_hz=12000),
+
+        # Noise gate
+        NoiseGate(
+            threshold_db=-35,
+            ratio=2
+        ),
+
+        # Compression
+        Compressor(
+            threshold_db=-18,
+            ratio=4,
+            attack_ms=5,
+            release_ms=100
+        ),
+
+        # Voice presence
+        Gain(gain_db=4),
+
+        # Soft room feel
+        Reverb(
+            room_size=0.03,
+            damping=0.2,
+            wet_level=0.03,
+            dry_level=0.97
+        ),
+
+        # Prevent clipping
+        Limiter(threshold_db=-1)
+
     ])
 
-    # Apply effects
-    effected = board(reduced_noise, rate)
+    processed = board(audio, sample_rate)
 
-    # Save enhanced audio
-    sf.write(output_audio, effected, rate)
+    # Loudness normalization
+    max_val = np.max(np.abs(processed))
 
-# Merge enhanced audio back into video
+    if max_val > 0:
+        processed = processed / max_val * 0.95
+
+    sf.write(output_audio, processed, sample_rate)
+
+# Merge audio back into video
 def merge_audio_video(video_path, audio_path, output_path):
 
     command = [
@@ -87,69 +146,93 @@ def merge_audio_video(video_path, audio_path, output_path):
 # Main app
 if uploaded_file:
 
-    # Save uploaded file
-    file_path = os.path.join("temp", uploaded_file.name)
+    file_path = os.path.join(
+        "temp",
+        uploaded_file.name
+    )
 
+    # Save upload
     with open(file_path, "wb") as f:
         f.write(uploaded_file.read())
 
     st.success("File uploaded successfully!")
 
-    audio_input = "temp/input_audio.wav"
-    enhanced_audio = "outputs/enhanced_audio.wav"
+    input_audio = "temp/input.wav"
+    mastered_audio = "outputs/mastered_voice.wav"
 
-    # If video
-    if uploaded_file.name.endswith(("mp4", "mov", "avi")):
+    is_video = uploaded_file.name.endswith(
+        ("mp4", "mov", "avi")
+    )
 
-        with st.spinner("Extracting audio..."):
-            extract_audio(file_path, audio_input)
+    # Extract audio if video
+    if is_video:
+
+        with st.spinner("Extracting audio from video..."):
+            extract_audio(
+                file_path,
+                input_audio
+            )
 
     else:
-        audio_input = file_path
+        input_audio = file_path
 
-    # Enhance voice
-    with st.spinner("Enhancing voice with AI..."):
-        enhance_audio(audio_input, enhanced_audio)
+    # AI enhancement
+    with st.spinner("Running AI voice enhancement..."):
 
-    st.success("Voice enhancement completed!")
+        enhanced_audio = ai_clean_audio(
+            input_audio
+        )
 
-    # Before vs After
+    # Studio mastering
+    with st.spinner("Applying studio mastering..."):
+
+        studio_master(
+            enhanced_audio,
+            mastered_audio
+        )
+
+    st.success("Professional enhancement completed!")
+
+    # Audio comparison
     col1, col2 = st.columns(2)
 
     with col1:
         st.subheader("Original Audio")
-        st.audio(audio_input)
+        st.audio(input_audio)
 
     with col2:
         st.subheader("Enhanced Audio")
-        st.audio(enhanced_audio)
+        st.audio(mastered_audio)
 
-    # Download output
-    if uploaded_file.name.endswith(("mp4", "mov", "avi")):
+    # Download section
+    if is_video:
 
         final_video = "outputs/final_video.mp4"
 
-        with st.spinner("Merging enhanced voice into video..."):
+        with st.spinner("Merging enhanced audio into video..."):
+
             merge_audio_video(
                 file_path,
-                enhanced_audio,
+                mastered_audio,
                 final_video
             )
 
         with open(final_video, "rb") as file:
+
             st.download_button(
                 label="Download Enhanced Video",
                 data=file,
-                file_name="studio_voice_video.mp4",
+                file_name="professional_voice_video.mp4",
                 mime="video/mp4"
             )
 
     else:
 
-        with open(enhanced_audio, "rb") as file:
+        with open(mastered_audio, "rb") as file:
+
             st.download_button(
                 label="Download Enhanced Audio",
                 data=file,
-                file_name="studio_voice.wav",
+                file_name="professional_voice.wav",
                 mime="audio/wav"
             )
