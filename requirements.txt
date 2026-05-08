@@ -1,4 +1,3 @@
 streamlit
-deepfilternet
-soundfile
-librosa
+pedalboard
+numpy
