@@ -1,12 +1,22 @@
 import streamlit as st
-from pydub import AudioSegment
-from pydub.effects import normalize
 import io
 
-st.set_page_config(page_title="Stable Voice AI", page_icon="🎙️")
+# --- PYTHON 3.13/3.14 COMPATIBILITY HOTFIX ---
+try:
+    import audioop
+except ImportError:
+    import audioop_lpm as audioop
+    import sys
+    sys.modules['audioop'] = audioop
+# ----------------------------------------------
+
+from pydub import AudioSegment
+from pydub.effects import normalize
+
+st.set_page_config(page_title="Studio Voice AI", page_icon="🎙️")
 
 st.title("🎙️ AI Studio Voice Enhancer")
-st.info("Using Stable Engine (No Install Errors)")
+st.caption("Fixed for Python 3.13+ compatibility")
 
 uploaded_file = st.file_uploader("Upload Audio", type=['wav', 'mp3'])
 
@@ -25,9 +35,6 @@ if uploaded_file is not None:
                 
                 # High Pass Filter: Removes low-end background hum (80Hz)
                 enhanced = enhanced.high_pass_filter(80)
-                
-                # Low Pass Filter: Smooths out harsh high-end noise
-                enhanced = enhanced.low_pass_filter(8000)
 
                 # 3. Export to buffer
                 buffer = io.BytesIO()
@@ -45,4 +52,3 @@ if uploaded_file is not None:
 
             except Exception as e:
                 st.error(f"Error: {e}")
-                st.info("Make sure ffmpeg is in your packages.txt file.")
