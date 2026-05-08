@@ -1,10 +1,9 @@
 streamlit
-moviepy==1.0.3
 numpy
 soundfile
+scipy
+pydub
 pedalboard
-deepfilternet
 ffmpeg-python
 imageio
 imageio-ffmpeg
-scipy
