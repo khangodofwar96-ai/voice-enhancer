@@ -1,4 +1,10 @@
 streamlit
-pydub
-audioop-lpm
+moviepy
+pedalboard
+soundfile
 numpy
+noisereduce
+librosa
+ffmpeg-python
+imageio
+imageio-ffmpeg
