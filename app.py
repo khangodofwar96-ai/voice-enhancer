@@ -18,19 +18,39 @@ from pedalboard import (
 os.makedirs("temp", exist_ok=True)
 os.makedirs("outputs", exist_ok=True)
 
-st.set_page_config(page_title="AI Voice Studio", layout="wide")
+st.set_page_config(page_title="AI Voice Studio Pro", layout="wide")
 
-st.title("🎙️ AI Studio Voice Enhancer (Stable Version)")
-st.write("Upload audio or video → get clean, studio-like voice")
+st.title("🎙️ AI Studio Voice Enhancer (Pro Edition)")
+st.write("Upload audio/video → get professional studio voice with visible effect chain")
 
 uploaded_file = st.file_uploader(
-    "Upload file",
+    "Upload File",
     type=["mp4", "mov", "avi", "wav", "mp3"]
 )
 
-# ---------------------------
-# Extract audio from video
-# ---------------------------
+# ----------------------------
+# SHOW EFFECT CHAIN UI
+# ----------------------------
+st.subheader("🎛️ Effect Chain (Applied in Order)")
+
+st.markdown("""
+### 🧠 Processing Pipeline
+
+1. 🎧 High-Pass Filter (Remove rumble below 80Hz)
+2. 🎧 Low-Pass Filter (Remove harsh highs above 12kHz)
+3. 🚪 Noise Gate (Remove background noise)
+4. 🎚️ Compressor (Level voice consistency)
+5. 🔊 Gain Boost (Increase clarity)
+6. 🌫️ Reverb (Very light studio depth)
+7. 🚫 Limiter (Prevent distortion)
+8. 📦 Normalize (Final loudness balancing)
+""")
+
+st.divider()
+
+# ----------------------------
+# AUDIO EXTRACTION
+# ----------------------------
 def extract_audio(video_path, audio_path):
     subprocess.run([
         "ffmpeg", "-y",
@@ -40,18 +60,23 @@ def extract_audio(video_path, audio_path):
         audio_path
     ], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
-# ---------------------------
-# AI-style cleanup (SAFE)
-# ---------------------------
+# ----------------------------
+# AUDIO PROCESSING
+# ----------------------------
 def clean_audio(input_audio, output_audio):
 
+    st.info("🎧 Step 1: Loading audio")
     data, sr = sf.read(input_audio)
 
     if len(data.shape) > 1:
         data = np.mean(data, axis=1)
 
-    # Normalize input
+    st.success("✔ Audio loaded")
+
+    st.info("🎚️ Step 2: Applying normalization")
     data = data / (np.max(np.abs(data)) + 1e-6)
+
+    st.info("🎛️ Step 3: Applying studio effects")
 
     board = Pedalboard([
 
@@ -59,7 +84,6 @@ def clean_audio(input_audio, output_audio):
         LowpassFilter(12000),
 
         NoiseGate(threshold_db=-40, ratio=2),
-
         Compressor(
             threshold_db=-18,
             ratio=3,
@@ -81,13 +105,20 @@ def clean_audio(input_audio, output_audio):
 
     processed = board(data, sr)
 
+    st.success("✔ Effects applied successfully")
+
+    st.info("📦 Step 4: Final normalization")
+
     processed = processed / (np.max(np.abs(processed)) + 1e-6)
+    processed = processed * 0.95
 
-    sf.write(output_audio, processed * 0.95, sr)
+    sf.write(output_audio, processed, sr)
 
-# ---------------------------
-# Merge audio + video
-# ---------------------------
+    st.success("🎉 Studio mastering complete!")
+
+# ----------------------------
+# MERGE VIDEO
+# ----------------------------
 def merge(video_path, audio_path, output_path):
 
     subprocess.run([
@@ -100,9 +131,9 @@ def merge(video_path, audio_path, output_path):
         output_path
     ], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
-# ---------------------------
-# MAIN APP
-# ---------------------------
+# ----------------------------
+# MAIN FLOW
+# ----------------------------
 if uploaded_file:
 
     file_path = os.path.join("temp", uploaded_file.name)
@@ -110,57 +141,60 @@ if uploaded_file:
     with open(file_path, "wb") as f:
         f.write(uploaded_file.read())
 
-    st.success("File uploaded successfully")
+    st.success("📁 File uploaded successfully")
 
     is_video = uploaded_file.name.endswith(("mp4", "mov", "avi"))
 
     input_audio = "temp/input.wav"
     output_audio = "outputs/clean.wav"
 
-    # Step 1: extract audio
     if is_video:
-        with st.spinner("Extracting audio..."):
+        with st.spinner("🎥 Extracting audio from video..."):
             extract_audio(file_path, input_audio)
     else:
         input_audio = file_path
 
-    # Step 2: clean audio
-    with st.spinner("Enhancing voice (AI processing)..."):
+    # PROCESS
+    with st.spinner("🤖 Enhancing audio with studio chain..."):
         clean_audio(input_audio, output_audio)
 
-    st.success("Enhancement completed!")
+    st.divider()
 
-    # Compare
+    # BEFORE / AFTER
     col1, col2 = st.columns(2)
 
     with col1:
-        st.subheader("Original")
+        st.subheader("🎙️ Original Audio")
         st.audio(input_audio)
 
     with col2:
-        st.subheader("Enhanced")
+        st.subheader("✨ Enhanced Audio (Studio)")
         st.audio(output_audio)
 
-    # Step 3: video merge
+    st.divider()
+
+    # VIDEO MERGE
     if is_video:
 
         final_video = "outputs/final.mp4"
 
-        with st.spinner("Merging audio with video..."):
+        with st.spinner("🎬 Merging enhanced audio with video..."):
             merge(file_path, output_audio, final_video)
+
+        st.success("🎬 Final video ready!")
 
         with open(final_video, "rb") as f:
             st.download_button(
-                "Download Enhanced Video",
+                "⬇ Download Enhanced Video",
                 f,
-                file_name="studio_video.mp4"
+                file_name="studio_voice_video.mp4"
             )
 
     else:
 
         with open(output_audio, "rb") as f:
             st.download_button(
-                "Download Enhanced Audio",
+                "⬇ Download Enhanced Audio",
                 f,
-                file_name="studio_audio.wav"
+                file_name="studio_voice.wav"
             )
