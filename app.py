@@ -18,18 +18,18 @@ from pedalboard import (
 os.makedirs("temp", exist_ok=True)
 os.makedirs("outputs", exist_ok=True)
 
-st.set_page_config(page_title="AI Voice FX Editor", layout="wide")
+st.set_page_config(page_title="AI Auto Studio Voice", layout="wide")
 
-st.title("🎛️ AI Voice FX Editor (Interactive Studio Mode)")
-st.write("Turn effects ON/OFF, preview instantly, and export final audio")
+st.title("🎙️ AI Auto Studio Voice Enhancer")
+st.write("Upload audio/video → AI automatically analyzes and applies professional mastering")
 
 uploaded_file = st.file_uploader(
-    "Upload Audio/Video",
+    "Upload File",
     type=["mp4", "mov", "avi", "wav", "mp3"]
 )
 
 # ---------------------------
-# AUDIO EXTRACTION
+# Extract audio from video
 # ---------------------------
 def extract_audio(video_path, audio_path):
     subprocess.run([
@@ -41,76 +41,75 @@ def extract_audio(video_path, audio_path):
     ], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
 # ---------------------------
-# CORE PROCESSOR (MODULAR FX)
+# AUTO STUDIO ENGINE
 # ---------------------------
-def apply_fx(input_audio, output_audio, fx_settings):
+def auto_master_audio(input_audio, output_audio):
 
     data, sr = sf.read(input_audio)
 
     if len(data.shape) > 1:
         data = np.mean(data, axis=1)
 
+    # Normalize input
     data = data / (np.max(np.abs(data)) + 1e-6)
+
+    # ---------------------------
+    # AUDIO ANALYSIS
+    # ---------------------------
+    rms = np.sqrt(np.mean(data**2))
+    peak = np.max(np.abs(data))
+
+    st.info(f"📊 Audio RMS Level: {rms:.4f}")
+    st.info(f"📊 Peak Level: {peak:.4f}")
 
     effects = []
 
-    # FX TOGGLE SYSTEM
-    if fx_settings["highpass"]:
-        effects.append(HighpassFilter(80))
+    # ---------------------------
+    # SMART DECISION ENGINE
+    # ---------------------------
 
-    if fx_settings["lowpass"]:
-        effects.append(LowpassFilter(12000))
+    if rms < 0.02:
+        st.warning("🔍 Detected: Low-quality / noisy audio")
+        effects.append(NoiseGate(threshold_db=-45, ratio=3))
+        effects.append(Compressor(threshold_db=-25, ratio=5))
+        effects.append(Gain(3.0))
 
-    if fx_settings["noise_gate"]:
+    elif 0.02 <= rms < 0.1:
+        st.success("🔍 Detected: Normal voice audio")
         effects.append(NoiseGate(threshold_db=-40, ratio=2))
+        effects.append(Compressor(threshold_db=-18, ratio=3))
+        effects.append(Gain(2.0))
 
-    if fx_settings["compressor"]:
-        effects.append(Compressor(
-            threshold_db=-18,
-            ratio=3,
-            attack_ms=10,
-            release_ms=150
-        ))
+    else:
+        st.warning("🔍 Detected: Loud / compressed audio")
+        effects.append(Limiter(threshold_db=-2))
+        effects.append(Compressor(threshold_db=-20, ratio=4))
 
-    if fx_settings["gain"]:
-        effects.append(Gain(2.5))
+    # ---------------------------
+    # ALWAYS APPLY STUDIO MASTERING
+    # ---------------------------
 
-    if fx_settings["reverb"]:
-        effects.append(Reverb(
-            room_size=0.02,
-            wet_level=0.02,
-            dry_level=0.98
-        ))
-
-    if fx_settings["limiter"]:
-        effects.append(Limiter(threshold_db=-1))
+    effects += [
+        HighpassFilter(80),
+        LowpassFilter(12000),
+        Reverb(room_size=0.015, wet_level=0.02, dry_level=0.98),
+        Limiter(threshold_db=-1)
+    ]
 
     board = Pedalboard(effects)
 
     processed = board(data, sr)
 
+    # Final normalization
     processed = processed / (np.max(np.abs(processed)) + 1e-6)
     processed = processed * 0.95
 
     sf.write(output_audio, processed, sr)
 
-# ---------------------------
-# UI EFFECT CONTROLS
-# ---------------------------
-st.sidebar.header("🎚️ FX Controls")
-
-fx_settings = {
-    "highpass": st.sidebar.checkbox("High Pass Filter (Clean bass rumble)", True),
-    "lowpass": st.sidebar.checkbox("Low Pass Filter (Smooth highs)", True),
-    "noise_gate": st.sidebar.checkbox("Noise Gate (Remove background noise)", True),
-    "compressor": st.sidebar.checkbox("Compressor (Level voice)", True),
-    "gain": st.sidebar.checkbox("Gain Boost (Loudness)", True),
-    "reverb": st.sidebar.checkbox("Light Reverb (Studio depth)", False),
-    "limiter": st.sidebar.checkbox("Limiter (Prevent distortion)", True),
-}
+    st.success("🎧 Auto Studio Mastering Completed")
 
 # ---------------------------
-# PROCESS BUTTON
+# MAIN APP
 # ---------------------------
 if uploaded_file:
 
@@ -124,39 +123,61 @@ if uploaded_file:
     is_video = uploaded_file.name.endswith(("mp4", "mov", "avi"))
 
     input_audio = "temp/input.wav"
-    output_audio = "outputs/preview.wav"
+    output_audio = "outputs/final.wav"
 
+    # Extract audio if needed
     if is_video:
         with st.spinner("Extracting audio..."):
             extract_audio(file_path, input_audio)
     else:
         input_audio = file_path
 
-    if st.button("🎧 Apply Selected Effects & Preview"):
+    # Run AI auto mastering
+    with st.spinner("AI analyzing and enhancing audio..."):
+        auto_master_audio(input_audio, output_audio)
 
-        with st.spinner("Processing audio with selected FX..."):
-            apply_fx(input_audio, output_audio, fx_settings)
+    st.divider()
 
-        st.success("Preview ready!")
+    # Preview
+    col1, col2 = st.columns(2)
 
-        st.subheader("🎙️ Original")
+    with col1:
+        st.subheader("🎙️ Original Audio")
         st.audio(input_audio)
 
-        st.subheader("✨ Processed Preview")
+    with col2:
+        st.subheader("✨ AI Enhanced Audio")
         st.audio(output_audio)
 
     st.divider()
 
-    # FINAL EXPORT
-    if st.button("⬇ Export Final Version"):
+    # Video merge
+    if is_video:
 
-        final_output = "outputs/final.wav"
+        final_video = "outputs/final_video.mp4"
 
-        apply_fx(input_audio, final_output, fx_settings)
+        subprocess.run([
+            "ffmpeg", "-y",
+            "-i", file_path,
+            "-i", output_audio,
+            "-map", "0:v:0",
+            "-map", "1:a:0",
+            "-c:v", "copy",
+            final_video
+        ], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
-        with open(final_output, "rb") as f:
+        with open(final_video, "rb") as f:
             st.download_button(
-                "Download Final Audio",
+                "⬇ Download Enhanced Video",
                 f,
-                file_name="studio_final.wav"
+                file_name="auto_studio_video.mp4"
+            )
+
+    else:
+
+        with open(output_audio, "rb") as f:
+            st.download_button(
+                "⬇ Download Enhanced Audio",
+                f,
+                file_name="auto_studio_audio.wav"
             )
