@@ -2,15 +2,9 @@ streamlit
 moviepy==1.0.3
 numpy
 soundfile
-noisereduce
 pedalboard
+deepfilternet
+ffmpeg-python
 imageio
 imageio-ffmpeg
-ffmpeg-python
-librosa
-decorator
-proglog
-tqdm
-requests
-pillow
 scipy
