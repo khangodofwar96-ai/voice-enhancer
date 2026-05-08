@@ -31,26 +31,28 @@ def extract_audio(video_path, output_audio):
 def enhance_audio(input_audio, output_audio):
     data, rate = sf.read(input_audio)
 
+    # Convert stereo to mono
     if len(data.shape) > 1:
         data = np.mean(data, axis=1)
 
+    # Noise reduction
     reduced_noise = nr.reduce_noise(
         y=data,
         sr=rate,
         prop_decrease=0.9
     )
 
-   board = Pedalboard([
-    NoiseGate(threshold_db=-30, ratio=1.5),
-    Compressor(threshold_db=-20, ratio=4),
-    Gain(gain_db=5),
-    Reverb(room_size=0.05)
-])
+    # Studio effects
+    board = Pedalboard([
+        NoiseGate(threshold_db=-30, ratio=1.5),
+        Compressor(threshold_db=-20, ratio=4),
+        Gain(gain_db=5),
+        Reverb(room_size=0.05)
+    ])
 
     effected = board(reduced_noise, rate)
 
     sf.write(output_audio, effected, rate)
-
 
 
 def merge_audio_video(video_path, audio_path, output_path):
