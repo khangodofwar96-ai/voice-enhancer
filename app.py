@@ -1,54 +1,69 @@
+import os
+import subprocess
 import streamlit as st
-import io
+from moviepy.editor import VideoFileClip
+from pedalboard import Pedalboard, Compressor, NoiseGate, Reverb, Gain
+from pedalboard.io import AudioFile
+import soundfile as sf
+import noisereduce as nr
+import numpy as np
 
-# --- PYTHON 3.13/3.14 COMPATIBILITY HOTFIX ---
-try:
-    import audioop
-except ImportError:
-    import audioop_lpm as audioop
-    import sys
-    sys.modules['audioop'] = audioop
-# ----------------------------------------------
+os.makedirs("temp", exist_ok=True)
+os.makedirs("outputs", exist_ok=True)
 
-from pydub import AudioSegment
-from pydub.effects import normalize
+st.set_page_config(page_title="AI Voice Editor", layout="wide")
 
-st.set_page_config(page_title="Studio Voice AI", page_icon="🎙️")
+st.title("🎙️ AI Voice Studio Enhancer")
+st.write("Upload rough audio/video and convert it into studio-quality voice.")
 
-st.title("🎙️ AI Studio Voice Enhancer")
-st.caption("Fixed for Python 3.13+ compatibility")
+uploaded_file = st.file_uploader(
+    "Upload Video or Audio",
+    type=["mp4", "mov", "avi", "wav", "mp3"]
+)
 
-uploaded_file = st.file_uploader("Upload Audio", type=['wav', 'mp3'])
 
-if uploaded_file is not None:
-    st.audio(uploaded_file, format='audio/wav')
-    
-    if st.button("✨ Enhance Voice"):
-        with st.spinner("Processing..."):
-            try:
-                # 1. Load the audio
-                audio = AudioSegment.from_file(uploaded_file)
+def extract_audio(video_path, output_audio):
+    video = VideoFileClip(video_path)
+    video.audio.write_audiofile(output_audio)
 
-                # 2. STUDIO PROCESSING
-                # Normalize: Brings volume to a professional level
-                enhanced = normalize(audio)
-                
-                # High Pass Filter: Removes low-end background hum (80Hz)
-                enhanced = enhanced.high_pass_filter(80)
 
-                # 3. Export to buffer
-                buffer = io.BytesIO()
-                enhanced.export(buffer, format="wav")
-                
-                st.success("Enhancement Complete!")
-                st.audio(buffer.getvalue(), format='audio/wav')
-                
-                st.download_button(
-                    label="Download Studio Version",
-                    data=buffer.getvalue(),
-                    file_name="enhanced_voice.wav",
-                    mime="audio/wav"
-                )
 
-            except Exception as e:
-                st.error(f"Error: {e}")
+def enhance_audio(input_audio, output_audio):
+    data, rate = sf.read(input_audio)
+
+    if len(data.shape) > 1:
+        data = np.mean(data, axis=1)
+
+    reduced_noise = nr.reduce_noise(
+        y=data,
+        sr=rate,
+        prop_decrease=0.9
+    )
+
+    board = Pedalboard([
+        NoiseGate(threshold_db=-30, ratio=1.5),
+        Compressor(threshold_db=-20, ratio=4),
+        Gain(gain_db=5),
+        Reverb(room_size=0.05)
+    ])
+
+    effected = board(reduced_noise, rate)
+
+    sf.write(output_audio, effected, rate)
+
+
+
+def merge_audio_video(video_path, audio_path, output_path):
+    command = [
+        "ffmpeg",
+        "-y",
+        "-i",
+        video_path,
+        "-i",
+        audio_path,
+        "-c:v",
+        "copy",
+        "-map",
+        "0:v:0",
+        "-map",
+            )
